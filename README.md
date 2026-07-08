@@ -27,7 +27,7 @@ Many modern productivity tools assume a stable internet connection. This project
 
 ## Architecture
 
-The repository is organized into a monorepo-style structure with separate application and package folders. The web app handles the user experience, the API manages server-side orchestration, and the shared package contains cross-cutting models and interfaces.
+The repository keeps the web app entry point at the root for easy GitHub browsing, with supporting API and shared package folders kept under their own paths. The web app handles the user experience, the API manages server-side orchestration, and the shared package contains cross-cutting models and interfaces.
 
 ## Offline-First Design
 
@@ -55,7 +55,7 @@ The API should expose endpoints for authentication, board and task management, s
 
 ## Local Development Setup
 
-Local development should be possible with a lightweight setup that does not require the full application to be running at once. Developers can work incrementally by scaffolding the web app, API, and shared package separately.
+Local development should be possible with a lightweight setup that does not require the full application to be running at once. Developers can work incrementally with the root web app, API, and shared package separately.
 
 ## Environment Variables
 
@@ -75,7 +75,7 @@ A demo user or sample account may be introduced later for walkthroughs and scree
 
 ## Folder Structure
 
-- apps/web: web application entry point
+- root: web application entry point
 - apps/api: backend API service
 - packages/shared: shared domain models and utilities
 - docs/screenshots: placeholder folder for screenshots and visual assets
