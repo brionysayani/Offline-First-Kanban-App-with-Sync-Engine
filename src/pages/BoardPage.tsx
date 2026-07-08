@@ -5,6 +5,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import SyncStatusBadge from '../components/SyncStatusBadge';
 import ActivityLogPanel from '../components/ActivityLogPanel';
 import { useAppStore } from '../store/useAppStore';
+import { joinBoardRoom } from '../sync/socketClient';
 
 type BoardPageProps = {
   boardId?: string;
@@ -22,6 +23,16 @@ function BoardPage({ boardId, onBack }: BoardPageProps) {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (!boardId) {
+      return undefined;
+    }
+
+    return joinBoardRoom(boardId, () => {
+      void syncNow();
+    });
+  }, [boardId, syncNow]);
 
   if (!boardId || !board) {
     return (

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { db, createLocalId, nowIso, queueOperation } from '../db/indexedDb';
 import { createSyncEngine } from '../sync/syncEngine';
+import { createHttpSyncTransport } from '../sync/httpSyncTransport';
 import type {
   ActivityEvent,
   ConflictRecord,
@@ -66,6 +67,7 @@ const refreshLocalState = async (): Promise<
 
 export const useAppStore = create<AppState>((set, get) => {
   const syncEngine = createSyncEngine({
+    transport: createHttpSyncTransport(),
     onStatusChange: (syncStatus) => set({ syncStatus, isSyncing: syncStatus === 'syncing' })
   });
 

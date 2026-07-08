@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
 import type { BoardSocketOperation } from '../../../../packages/shared';
+import { env } from '../config/env';
 
 let io: Server | undefined;
 
@@ -11,7 +12,7 @@ export const broadcastBoardOperation = (boardId: string, operation: BoardSocketO
 export const initSocket = (server: HttpServer) => {
   io = new Server(server, {
     cors: {
-      origin: '*'
+      origin: env.corsOrigin
     }
   });
 

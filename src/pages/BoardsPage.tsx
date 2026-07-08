@@ -20,6 +20,12 @@ function BoardsPage({ onOpenBoard }: BoardsPageProps) {
     void hydrate();
   }, [hydrate]);
 
+  useEffect(() => {
+    if (isOnline) {
+      void syncNow();
+    }
+  }, [isOnline, syncNow]);
+
   const handleCreateBoard = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextTitle = title.trim();

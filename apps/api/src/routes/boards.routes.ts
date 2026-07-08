@@ -73,7 +73,7 @@ const mapBoard = (board: {
 
 router.get('/', authMiddleware, async (_req: AuthRequest, res: Response) => {
   const boards = await prisma.board.findMany({
-    where: { deletedAt: null },
+    where: { userId: _req.user!.id, deletedAt: null },
     include: {
       columns: { where: { deletedAt: null }, orderBy: { position: 'asc' } },
       cards: { where: { deletedAt: null }, orderBy: { position: 'asc' } }
@@ -88,6 +88,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   const body = req.body as { title?: string; description?: string };
   const board = await prisma.board.create({
     data: {
+      userId: req.user!.id,
       title: body.title?.trim() || 'Untitled board',
       description: body.description
     }

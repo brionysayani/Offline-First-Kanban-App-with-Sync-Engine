@@ -12,7 +12,7 @@ export interface SyncEngine {
 
 export interface SyncPushResult {
   operationId: string;
-  status: 'accepted' | 'conflict';
+  status: 'accepted' | 'duplicate' | 'conflict';
   remoteValue?: unknown;
   message?: string;
 }
@@ -184,6 +184,9 @@ export const createSyncEngine = ({
 
       const conflictCount = await db.operations.where('status').equals('conflict').count();
       setStatus(conflictCount > 0 ? 'conflict' : 'synced');
+    } catch {
+      const conflictCount = await db.operations.where('status').equals('conflict').count();
+      setStatus(conflictCount > 0 ? 'conflict' : 'online');
     } finally {
       syncInFlight = false;
     }

@@ -210,6 +210,24 @@ const getBoardIdForOperation = async (
   return card?.boardId;
 };
 
+const assertBoardAccess = async (tx: TransactionClient, boardId: string | undefined, userId: string) => {
+  if (!boardId) {
+    return;
+  }
+
+  const board = await tx.board.findFirst({
+    where: {
+      id: boardId,
+      userId
+    },
+    select: { id: true }
+  });
+
+  if (!board) {
+    throw new Error('Board not found');
+  }
+};
+
 const createConflict = (
   operation: OutboxOperation,
   serverVersion: number,
@@ -232,7 +250,8 @@ const createConflict = (
 const applyOperation = async (
   tx: TransactionClient,
   operation: OutboxOperation,
-  serverVersion: number
+  serverVersion: number,
+  userId: string
 ): Promise<{ boardId?: string; resultingVersion: number; entity?: SyncEntity }> => {
   const resultingVersion = serverVersion + 1;
   const timestamp = new Date();
@@ -243,6 +262,7 @@ const applyOperation = async (
       const created = await tx.board.create({
         data: {
           id: operation.entityId,
+          userId,
           title: asString(board.title, 'Untitled board'),
           description: asOptionalString(board.description),
           version: resultingVersion,
@@ -493,7 +513,7 @@ const applyOperation = async (
   }
 };
 
-const applyQueuedOperation = async (operation: OutboxOperation): Promise<SyncOperationResult> => {
+const applyQueuedOperation = async (operation: OutboxOperation, userId: string): Promise<SyncOperationResult> => {
   const applied = await prisma.$transaction(async (tx) => {
     const existingLog = await tx.operationLog.findUnique({ where: { operationId: operation.id } });
 
@@ -509,6 +529,9 @@ const applyQueuedOperation = async (operation: OutboxOperation): Promise<SyncOpe
 
     const currentEntity = await getCurrentEntity(tx, operation.entityType, operation.entityId);
     const serverVersion = currentEntity?.version ?? 0;
+    if (operation.type !== 'CREATE_BOARD') {
+      await assertBoardAccess(tx, await getBoardIdForOperation(tx, operation, currentEntity), userId);
+    }
 
     if (!currentEntity && !operation.type.startsWith('CREATE_')) {
       return {
@@ -527,7 +550,7 @@ const applyQueuedOperation = async (operation: OutboxOperation): Promise<SyncOpe
       };
     }
 
-    const appliedOperation = await applyOperation(tx, operation, serverVersion);
+    const appliedOperation = await applyOperation(tx, operation, serverVersion, userId);
     const boardId = appliedOperation.boardId ?? (await getBoardIdForOperation(tx, operation, appliedOperation.entity));
 
     await tx.operationLog.create({
@@ -566,17 +589,22 @@ const applyQueuedOperation = async (operation: OutboxOperation): Promise<SyncOpe
   return applied.result;
 };
 
-router.post('/bootstrap', authMiddleware, async (_req: AuthRequest, res: Response) => {
+router.post('/bootstrap', authMiddleware, async (req: AuthRequest, res: Response) => {
   const [boards, operationLog] = await Promise.all([
     prisma.board.findMany({
-      where: { deletedAt: null },
+      where: { userId: req.user!.id, deletedAt: null },
       include: {
         columns: { where: { deletedAt: null }, orderBy: { position: 'asc' } },
         cards: { where: { deletedAt: null }, orderBy: { position: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' }
     }),
-    prisma.operationLog.findMany({ orderBy: { createdAt: 'asc' } })
+    prisma.operationLog.findMany({
+      where: {
+        OR: [{ boardId: null }, { board: { is: { userId: req.user!.id } } }]
+      },
+      orderBy: { createdAt: 'asc' }
+    })
   ]);
 
   res.json({
@@ -593,7 +621,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
   for (const operation of operations) {
     try {
-      results.push(await applyQueuedOperation(operation));
+      results.push(await applyQueuedOperation(operation, req.user!.id));
     } catch (error) {
       results.push({
         operationId: operation.id,

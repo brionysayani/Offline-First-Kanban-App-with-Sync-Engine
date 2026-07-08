@@ -4,11 +4,12 @@ import RegisterPage from './pages/RegisterPage';
 import BoardsPage from './pages/BoardsPage';
 import BoardPage from './pages/BoardPage';
 import { useAppStore } from './store/useAppStore';
+import { apiClient } from './api/client';
 
 type View = 'login' | 'register' | 'boards' | 'board';
 
 function App() {
-  const [view, setView] = useState<View>('boards');
+  const [view, setView] = useState<View>(() => (apiClient.isAuthenticated() ? 'boards' : 'login'));
   const [selectedBoardId, setSelectedBoardId] = useState<string | undefined>();
   const setOnline = useAppStore((state) => state.setOnline);
 
@@ -33,7 +34,7 @@ function App() {
   const currentPage = useMemo(() => {
     switch (view) {
       case 'register':
-        return <RegisterPage onSwitchToLogin={() => setView('login')} />;
+        return <RegisterPage onSwitchToLogin={() => setView('login')} onRegister={() => setView('boards')} />;
       case 'boards':
         return <BoardsPage onOpenBoard={openBoard} />;
       case 'board':

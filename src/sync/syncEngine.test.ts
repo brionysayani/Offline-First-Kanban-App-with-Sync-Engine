@@ -285,7 +285,7 @@ describe('sync engine', () => {
   it('ignores duplicate remote operation acknowledgements', async () => {
     const operation = await seedOperation({ id: 'op_duplicate' });
     const pushOperations = vi.fn(async () => [
-      { operationId: operation.id, status: 'duplicate' as 'accepted' }
+      { operationId: operation.id, status: 'duplicate' as const }
     ]);
     const engine = createSyncEngine({ transport: { pushOperations } });
 

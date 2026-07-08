@@ -2,103 +2,141 @@
 
 ## Overview
 
-This repository contains an offline-first kanban application prototype with a local-first React UI, IndexedDB persistence, an operation outbox, a backend sync API, and shared domain contracts. The current implementation focuses on preserving user changes locally first, then syncing queued operations when connectivity is available.
+This is an offline-first kanban application with a React/Vite web app, IndexedDB persistence, an operation outbox, an Express sync API, Socket.IO board rooms, Prisma, and PostgreSQL. It is prepared for deployment with:
+
+- Vercel for the root web app
+- Railway for the API
+- Railway managed PostgreSQL or another managed PostgreSQL provider
 
 ## Current Features
 
-- Board, column, and card creation from the frontend
-- Drag-and-drop card movement between kanban columns
-- Optimistic UI updates backed by IndexedDB
-- Operation outbox for local mutations
-- Pending sync count, offline banner, sync status badge, conflict panel, and activity log panel
+- Email/password register and login with JWT authentication
+- Board, column, and card creation
+- Drag-and-drop card movement between columns
+- Optimistic local updates backed by IndexedDB
+- Operation outbox for local-first mutations
+- Automatic sync bootstrap when the web app is online
+- Pending sync count, offline banner, sync status badge, conflict panel, and activity log
 - Retry handling for failed sync pushes
-- Conflict state support when the server reports stale versions
-- Express sync API for bootstrap and batch operation sync
-- Prisma schema for boards, columns, cards, users, and applied operation logs
-- Socket.IO board rooms for joining, leaving, and broadcasting board operations
+- Version conflict detection and conflict storage
+- Backend sync API with operation idempotency through `OperationLog`
+- Socket.IO board rooms for real-time board operation broadcasts
+- Vitest sync-engine tests
 
-## Architecture
+## Project Structure
 
-The web app is kept at the repository root for easy GitHub browsing. The API and shared contracts live in their own folders:
+- `src`: Vercel-deployed React/Vite web app
+- `apps/api`: Railway-deployed Express API, Socket.IO server, and Prisma schema
+- `packages/shared`: shared TypeScript contracts
+- `docs/screenshots`: screenshots and visual assets
 
-- `src`: React/Vite web app
-- `apps/api`: Express API, Socket.IO setup, and Prisma schema
-- `packages/shared`: shared TypeScript types for local entities, operations, sync responses, conflicts, and socket messages
-- `docs/screenshots`: placeholder for screenshots and visual assets
+## Environment Variables
 
-The frontend currently uses an injectable sync transport. The local sync engine and backend sync API are implemented, but direct HTTP wiring between the frontend transport and the API is still a future integration step.
+Web app, configured in Vercel:
 
-## Frontend
+```txt
+VITE_API_URL=https://your-railway-api.up.railway.app
+```
 
-The frontend stores boards, columns, cards, queued operations, activity events, and conflicts in IndexedDB through Dexie. Mutations update IndexedDB first, then enqueue an outbox operation with:
+API, configured in Railway:
 
-- `id`
-- `type`
-- `entityType`
-- `entityId`
-- `payload`
-- `baseVersion`
-- `createdAt`
-- `status`
-- `retryCount`
+```txt
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+JWT_SECRET=replace-with-a-long-random-secret
+CORS_ORIGIN=https://your-vercel-app.vercel.app
+NODE_ENV=production
+PORT=4000
+```
 
-Supported operation types include board, column, and card create/update/delete operations, plus card moves.
+Templates are included in `.env.example` and `apps/api/.env.example`.
 
-## Sync Engine
+## Deploying the Web App to Vercel
 
-The sync engine reads pending outbox operations, pushes them through an injectable transport, records synced operations, retries failures, and stores conflict records when the remote side reports a version conflict. Sync status values are:
+Use the repository root as the Vercel project root.
 
-- `online`
-- `offline`
-- `syncing`
-- `synced`
-- `conflict`
+Vercel settings:
 
-Operation IDs are used for idempotency across client and server boundaries.
+- Framework preset: Vite
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable: `VITE_API_URL`
 
-## Backend
+The root `vercel.json` includes the Vite output directory and SPA rewrite.
 
-The backend exposes:
+## Deploying the API to Railway
 
-- `POST /api/sync/bootstrap`: returns current board state, applied operation log entries, and server time
-- `POST /api/sync`: accepts a batch of queued operations and returns per-operation results
-- `GET /api/boards`: returns active boards with columns and cards
-- `POST /api/boards`: creates a server-side board and broadcasts it to the board room
+Create a Railway service using `apps/api` as the service root. Attach a managed PostgreSQL database and set the API environment variables above.
 
-The sync route stores applied operations in `OperationLog`, checks `baseVersion` against the current server entity version, returns conflicts for stale clients, and broadcasts successful board changes through Socket.IO.
+Railway uses `apps/api/railway.json`:
 
-## Socket.IO
+- Build command: `npm run build`
+- Start command: `npm run start`
+- Health check: `/health`
 
-The socket layer supports board-scoped collaboration messages:
+The API start script runs `prisma migrate deploy` before starting the compiled server.
 
-- `board:join`
-- `board:leave`
-- `board:operation`
+## Database
 
-Successful sync operations are broadcast to the affected board room.
+The Prisma schema models users, boards, columns, cards, and applied operation logs. A production migration is checked in under:
 
-## Testing
+```txt
+apps/api/prisma/migrations/20260708000000_initial_production_schema/migration.sql
+```
 
-Vitest tests for the sync engine have been added in `src/sync/syncEngine.test.ts`. The tests cover:
+Railway will apply this migration during API startup through `prisma migrate deploy`.
 
-- queued operations staying stored while offline
-- pending operation flush when online
-- duplicate remote operation acknowledgements being ignored
-- version conflict handling
-- retry behavior after failed sync attempts
-- optimistic IndexedDB-backed local state updates
+## Sync Flow
 
-The tests were created but not run in this phase. No test command or runner dependency was installed as part of this update.
+1. The UI writes every mutation to IndexedDB first.
+2. The same transaction queues an outbox operation.
+3. The sync engine posts pending operations to `POST /api/sync`.
+4. The API checks operation IDs for idempotency.
+5. The API compares client `baseVersion` with server entity version.
+6. Successful operations are stored in `OperationLog`.
+7. Conflicts are returned and stored locally.
+8. Successful board operations are broadcast through Socket.IO.
+9. The web app joins board rooms and refreshes sync state on board broadcasts.
 
-## Local Development
+## API Endpoints
 
-The project is split so the root web app, API, and shared package can evolve independently. Dependencies and services were not installed or started during this phase.
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/boards`
+- `POST /api/boards`
+- `POST /api/sync/bootstrap`
+- `POST /api/sync`
+- `GET /health`
 
-## Future Work
+## Tests
 
-- Wire the frontend sync transport to the backend `/api/sync` endpoints
-- Add authentication-backed board ownership
-- Add conflict resolution actions in the UI
-- Add generated Prisma client/migrations after schema review
-- Add a formal Vitest setup and package script
-- Add end-to-end coverage for offline-to-online sync flows
+Vitest tests are in:
+
+```txt
+src/sync/syncEngine.test.ts
+```
+
+They cover offline queueing, online flush, duplicate operation handling, conflict handling, retries, and optimistic IndexedDB state updates.
+
+Run tests locally only after dependencies are installed:
+
+```txt
+npm test
+```
+
+Tests were not run during this production-readiness pass.
+
+## Production Notes
+
+- Set a long random `JWT_SECRET` in Railway.
+- Set `CORS_ORIGIN` to the exact Vercel deployment URL.
+- Set `VITE_API_URL` to the Railway API URL with no trailing slash.
+- Keep Railway PostgreSQL private to the Railway project when possible.
+- Use Vercel and Railway build logs as the source of truth after first deployment.
+
+## Remaining Hardening
+
+- Add CI to run frontend tests, API build, and type checks on every PR.
+- Add rate limiting for auth endpoints.
+- Add refresh tokens or session rotation if long-lived sessions are required.
+- Add richer UI actions for resolving conflicts.
+- Add end-to-end tests for offline-to-online sync.
