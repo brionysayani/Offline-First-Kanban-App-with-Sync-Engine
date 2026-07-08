@@ -19,15 +19,62 @@ model Board {
   id          String   @id @default(cuid())
   title       String
   description String?
+  version     Int      @default(1)
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  columns     BoardColumn[]
+  cards       Card[]
 }
 
-model Task {
+model BoardColumn {
   id          String   @id @default(cuid())
   title       String
-  completed   Boolean  @default(false)
+  position    Int      @default(0)
+  version     Int      @default(1)
   boardId     String
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards       Card[]
+
+  @@index([boardId])
+}
+
+model Card {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  position    Int      @default(0)
+  version     Int      @default(1)
+  boardId     String
+  columnId    String
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  board       Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column      BoardColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([columnId])
+}
+
+model OperationLog {
+  id               String   @id @default(cuid())
+  operationId      String   @unique
+  type             String
+  entityType       String
+  entityId         String
+  boardId          String?
+  payload          Json
+  baseVersion      Int
+  resultingVersion Int
+  createdAt        DateTime @default(now())
+
+  @@index([boardId])
+  @@index([entityType, entityId])
 }

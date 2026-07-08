@@ -19,6 +19,7 @@ export type SyncStatus = 'online' | 'offline' | 'syncing' | 'synced' | 'conflict
 export interface LocalBoard {
   id: string;
   title: string;
+  description?: string;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -85,4 +86,65 @@ export interface ConflictRecord<TLocal = unknown, TRemote = unknown> {
   message: string;
   createdAt: string;
   resolvedAt?: string;
+}
+
+export interface ServerBoard extends LocalBoard {
+  columns: ServerColumn[];
+  cards: ServerCard[];
+}
+
+export type ServerColumn = LocalColumn;
+
+export type ServerCard = LocalCard;
+
+export interface OperationLogEntry<TPayload = unknown> {
+  id: string;
+  operationId: string;
+  type: OperationType;
+  entityType: EntityType;
+  entityId: string;
+  payload: TPayload;
+  baseVersion: number;
+  resultingVersion: number;
+  createdAt: string;
+}
+
+export interface SyncBootstrapResponse {
+  boards: ServerBoard[];
+  operationLog: OperationLogEntry[];
+  serverTime: string;
+}
+
+export interface SyncBatchRequest {
+  operations: OutboxOperation[];
+}
+
+export interface SyncConflict<TServer = unknown> {
+  operationId: string;
+  entityType: EntityType;
+  entityId: string;
+  baseVersion: number;
+  serverVersion: number;
+  serverValue?: TServer;
+  message: string;
+}
+
+export interface SyncOperationResult<TServer = unknown> {
+  operationId: string;
+  status: 'accepted' | 'duplicate' | 'conflict' | 'error';
+  resultingVersion?: number;
+  conflict?: SyncConflict<TServer>;
+  message?: string;
+}
+
+export interface SyncBatchResponse {
+  results: SyncOperationResult[];
+  serverTime: string;
+}
+
+export interface BoardSocketOperation<TPayload = unknown> {
+  boardId: string;
+  operation: OutboxOperation<TPayload>;
+  resultingVersion: number;
+  serverTime: string;
 }
